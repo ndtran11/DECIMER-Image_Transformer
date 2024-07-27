@@ -81,15 +81,14 @@ def ensure_models(default_path: str, model_urls: dict) -> dict:
         "DECIMER": 28080309,
         "DECIMER_HandDrawn": 28080328,
     }
+
     for model_name, model_url in model_urls.items():
         model_path = os.path.join(default_path, f"{model_name}_model")
-        if os.path.exists(model_path) and os.stat(
+        if not os.path.exists(os.path.join(model_path, "saved_model.pb")) or os.stat(
             os.path.join(model_path, "saved_model.pb")
         ).st_size != model_sizes.get(model_name):
             print(f"Working with model {model_name}")
             shutil.rmtree(model_path)
-            config.download_trained_weights(model_url, default_path)
-        elif not os.path.exists(model_path):
             config.download_trained_weights(model_url, default_path)
 
         # Store the model path

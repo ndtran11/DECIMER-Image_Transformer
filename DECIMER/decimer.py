@@ -1,7 +1,7 @@
-import logging
 import os
-import pickle
-import sys
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+
+import logging
 from typing import List
 from typing import Tuple
 
@@ -10,65 +10,17 @@ import tensorflow as tf
 
 import DECIMER.config as config
 import DECIMER.utils as utils
+from DECIMER.infer import SingletonInferenceInterace
+from PIL import Image
 
 # Silence tensorflow model loading warnings.
 logging.getLogger("absl").setLevel("ERROR")
 
 # Silence tensorflow errors - not recommended if your model is not working properly.
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
-# Set the absolute path
-HERE = os.path.dirname(os.path.abspath(__file__))
 
-# Set model to run on default GPU and allow memory to grow as much as needed.
-# This allows us to run multiple instances of inference in the same GPU.
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-gpus = tf.config.experimental.list_physical_devices("GPU")
-for gpu in gpus:
-    tf.config.experimental.set_memory_growth(gpu, True)
 
 # Set path
-default_path = pystow.join("DECIMER-V2")
-
-model_urls = {
-    "DECIMER": "https://zenodo.org/record/8300489/files/models.zip",
-    "DECIMER_HandDrawn": "https://zenodo.org/records/10781330/files/DECIMER_HandDrawn_model.zip",
-}
-
-
-def get_models(model_urls: dict):
-    """Download and load models from the provided URLs.
-
-    This function downloads models from the provided URLs to a default location,
-    then loads tokenizers and TensorFlow saved models.
-
-    Args:
-        model_urls (dict): A dictionary containing model names as keys and their corresponding URLs as values.
-
-    Returns:
-        tuple: A tuple containing loaded tokenizer and TensorFlow saved models.
-            - tokenizer (object): Tokenizer for DECIMER model.
-            - DECIMER_V2 (tf.saved_model): TensorFlow saved model for DECIMER.
-            - DECIMER_Hand_drawn (tf.saved_model): TensorFlow saved model for DECIMER HandDrawn.
-    """
-    # Download models to a default location
-    model_paths = utils.ensure_models(default_path=default_path, model_urls=model_urls)
-
-    # Load tokenizers
-    tokenizer_path = os.path.join(
-        model_paths["DECIMER"], "assets", "tokenizer_SMILES.pkl"
-    )
-    tokenizer = pickle.load(open(tokenizer_path, "rb"))
-
-    # Load DECIMER models
-    DECIMER_V2 = tf.saved_model.load(model_paths["DECIMER"])
-    DECIMER_Hand_drawn = tf.saved_model.load(model_paths["DECIMER_HandDrawn"])
-
-    return tokenizer, DECIMER_V2, DECIMER_Hand_drawn
-
-
-tokenizer, DECIMER_V2, DECIMER_Hand_drawn = get_models(model_urls)
-
 
 def detokenize_output(predicted_array: int) -> str:
     """This function takes the predicted tokens from the DECIMER model and
@@ -80,12 +32,17 @@ def detokenize_output(predicted_array: int) -> str:
     Returns:
         (str): SMILES representation of the molecule
     """
-    outputs = [tokenizer.index_word[i] for i in predicted_array[0].numpy()]
+    outputs = [
+        SingletonInferenceInterace().tokenizer.index_word[i] 
+        for i in predicted_array[0].numpy()
+    ]
+
     prediction = (
         "".join([str(elem) for elem in outputs])
         .replace("<start>", "")
         .replace("<end>", "")
     )
+
     return prediction
 
 
@@ -106,7 +63,7 @@ def detokenize_output_add_confidence(
     """
     prediction_with_confidence = [
         (
-            tokenizer.index_word[predicted_array[0].numpy()[i]],
+            SingletonInferenceInterace().tokenizer.index_word[predicted_array[0].numpy()[i]],
             confidence_array[i].numpy(),
         )
         for i in range(len(confidence_array))
@@ -122,21 +79,21 @@ def detokenize_output_add_confidence(
 
 
 def predict_SMILES(
-    image_path: str, confidence: bool = False, hand_drawn: bool = False
+    image: Image, confidence: bool = False, hand_drawn: bool = False
 ) -> str:
     """Predicts SMILES representation of a molecule depicted in the given image.
 
     Args:
-        image_path (str): Path of chemical structure depiction image
+        image (PIL.Image): Image of chemical structure depiction
         confidence (bool): Flag to indicate whether to return confidence values along with SMILES prediction
         hand_drawn (bool): Flag to indicate whether the molecule in the image is hand-drawn
 
     Returns:
         str: SMILES representation of the molecule in the input image, optionally with confidence values
     """
-    chemical_structure = config.decode_image(image_path)
+    chemical_structure = config.decode_image(image)
 
-    model = DECIMER_Hand_drawn if hand_drawn else DECIMER_V2
+    model = SingletonInferenceInterace().get_model(for_handrawn=hand_drawn)
     predicted_tokens, confidence_values = model(tf.constant(chemical_structure))
 
     predicted_SMILES = utils.decoder(detokenize_output(predicted_tokens))
@@ -160,10 +117,12 @@ def main():
     Returns:
         str: predicted SMILES
     """
+    import sys
     if len(sys.argv) != 2:
         print("Usage: {} $image_path".format(sys.argv[0]))
     else:
-        SMILES = predict_SMILES(sys.argv[1])
+        img = Image.open(sys.argv[1])
+        SMILES = predict_SMILES(img)
         print(SMILES)
 
 

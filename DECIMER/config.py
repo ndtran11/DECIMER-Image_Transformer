@@ -95,21 +95,14 @@ def HEIF_to_pillow(image_path: str):
     return heif_file
 
 
-def remove_transparent(image_path: str):
+def remove_transparent(img: Image):
     """
     Removes the transparent layer from a PNG image with an alpha channel
-    Args: image_path (str): path of input image
+    Args: img (Image): path of input image
     Returns: PIL.Image
     """
-    try:
-        png = Image.open(image_path).convert("RGBA")
-    except Exception as e:
-        if type(e).__name__ == "UnidentifiedImageError":
-            png = HEIF_to_pillow(image_path)
-        else:
-            print(e)
-            raise Exception
 
+    png = img.convert("RGBA")
     background = Image.new("RGBA", png.size, (255, 255, 255))
 
     alpha_composite = Image.alpha_composite(background, png)
@@ -185,17 +178,17 @@ def increase_brightness(image):
     return image
 
 
-def decode_image(image_path: str):
+def decode_image(image: Image):
     """Loads an image and preprocesses the input image in several steps to get
     the image ready for DECIMER input.
 
     Args:
-        image_path (str): path of input image
+        image (PIL.Image): Input image
 
     Returns:
         Processed image
     """
-    img = remove_transparent(image_path)
+    img = remove_transparent(image)
     img = increase_contrast(img)
     img = get_bnw_image(img)
     img = get_resize(img)
