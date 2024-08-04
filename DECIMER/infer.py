@@ -1,7 +1,7 @@
 from singleton_decorator import singleton 
 import pystow
 import tensorflow as tf
-import utils
+from DECIMER import utils
 import pickle
 import os
 
@@ -34,15 +34,15 @@ def get_models(model_urls: dict):
 
     # Load DECIMER models
     DECIMER_V2 = tf.saved_model.load(model_paths["DECIMER"])
-    DECIMER_Hand_drawn = tf.saved_model.load(model_paths["DECIMER_HandDrawn"])
+    # DECIMER_Hand_drawn = tf.saved_model.load(model_paths["DECIMER_HandDrawn"])
 
-    return tokenizer, DECIMER_V2, DECIMER_Hand_drawn
+    return tokenizer, DECIMER_V2 #, DECIMER_Hand_drawn
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 model_urls = {
     "DECIMER": "https://zenodo.org/record/8300489/files/models.zip",
-    "DECIMER_HandDrawn": "https://zenodo.org/records/10781330/files/DECIMER_HandDrawn_model.zip",
+    # "DECIMER_HandDrawn": "https://zenodo.org/records/10781330/files/DECIMER_HandDrawn_model.zip",
 }
 
 @singleton
@@ -50,14 +50,7 @@ class SingletonInferenceInterace(object):
     def __init__(self, *args, **kwargs):
         # Set the absolute path
 
-        # Set model to run on default GPU and allow memory to grow as much as needed.
-        # This allows us to run multiple instances of inference in the same GPU.
-        os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-        gpus = tf.config.experimental.list_physical_devices("GPU")
-        for gpu in gpus:
-            tf.config.experimental.set_memory_growth(gpu, True)
-
-        self._tokenizer, self._DECIMER_V2, self._DECIMER_Hand_drawn = get_models(model_urls)
+        self._tokenizer, self._DECIMER_V2 = get_models(model_urls)
         
     @property
     def tokenizer(self):

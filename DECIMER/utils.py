@@ -88,7 +88,10 @@ def ensure_models(default_path: str, model_urls: dict) -> dict:
             os.path.join(model_path, "saved_model.pb")
         ).st_size != model_sizes.get(model_name):
             print(f"Working with model {model_name}")
-            shutil.rmtree(model_path)
+
+            if os.path.exists(model_path):
+                shutil.rmtree(model_path)
+
             config.download_trained_weights(model_url, default_path)
 
         # Store the model path
